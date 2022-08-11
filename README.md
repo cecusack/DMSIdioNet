@@ -2,10 +2,10 @@
 
 This repository contains code used to compute analyses for the paper entitled "Understanding heterogeneity, comorbidity, and variability in depression: Idiographic models and depression outcomes"
 
-Claire E Cusack^1, Christina Ralph-Nearman^1, Caroline Christian^1, Aaron J. Fisher^2, & Cheri Levinson^1
+Claire E Cusack<sup>1</sup>, Christina Ralph-Nearman<sup>1</sup>, Caroline Christian<sup>1</sup>, Aaron J. Fisher<sup>2</sup>, & Cheri Levinson<sup>1</sup>
 
-^1 University of Louisville, Department of Psychological and Brain Sciences
-^2 University of California-Berkeley, Department of Psychology
+<sup>1</sup> University of Louisville, Department of Psychological and Brain Sciences
+<sup>1</sup> University of California-Berkeley, Department of Psychology
 
 ## Organization
 
