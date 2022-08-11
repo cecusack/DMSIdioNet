@@ -1,0 +1,287 @@
+---
+title: "items_regularizednet"
+author: "CCusack"
+date: "2/18/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# set up 
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+source('./../../../individual networks/item_selfunction.R', encoding = 'UTF-8')
+group_dat=read.csv("ema_groupdata_nonightlag.csv")
+ids=unique(group_dat$ID)
+rm(group_dat)
+
+dat=data.frame(matrix(nrow = 62, ncol = 14))
+names(dat)=c("id", "network", "symp1", "symp2", "symp3", "symp4", "symp5", "symp6", "symp1_cat", "symp2_cat", "symp3_cat", "symp4_cat", "symp5_cat", "symp6_cat")
+dat[1]=rep(ids, each=2)
+dat[2]=rep(c("means", "sd"))
+```
+
+# extract items 
+```{r}
+# set path
+common_path = "/Users/clairecusack/Dropbox/EAT LAB STUDIES (IN PROGRESS)/COMPLETED/Daily Mood Study (DMS)/Daily Mood Study/individual networks"
+
+# specify what I want
+files_to_read = list.files(
+  path = common_path,        # directory to search within
+  pattern = "*_impute.csv$", # regex pattern, some explanation below
+  recursive = TRUE,          # search subdirectories
+  full.names = TRUE          # return the full path
+)
+
+# make list of participant dataframes
+data_lst = lapply(files_to_read, read.csv)  # read all the matching files
+
+# extract items and fill in df
+for(i in 1:length(data_lst)){
+ dat[which(dat$network=="means")[i],3:8]= unlist(matrix(unlist(item_sel(data.frame(data_lst[i]))), ncol=2, byrow = F)[,1])
+ dat[which(dat$network=="sd")[i], 3:8]=unlist(matrix(unlist(item_sel(data.frame(data_lst[i]))), ncol=2, byrow = F)[,2])
+}
+```
+
+
+# categorize items
+```{r}
+dep=c("energy", "sleep", "appetite", "decisions", "worthless", "cry", "guilty", "dislikeself","pleasure", "criticalself", "suppressemo", "concentrate", "irritable", "shortcomings", "sad", "failure")
+
+anx=c("difficultforget", "traumamem", "anxiety", "nervoussocial", "worryoverwhelm", "interocept", "alwaysworry", "pastevent", "workjob", "restless", "controlthoughts")
+
+ed=c("bodydissat", "overeat", "weighurge", "exerciseurge", "restricturge", "fasturge", "feelfat", "purgeurge", "feargain", "bingeurge", "calcounturge", "diet", "laxdiururge", "desirethin", "fasturge", "wsconc")
+
+
+# fill out symptom type
+for(i in dat[3:8]) {
+  dat[,9] <- ifelse(dat$symp1 %in% dep, "dep", ifelse(dat$symp1 %in% anx, "anx", ifelse(dat$symp1 %in% ed, "ed", dat$symp1)))
+  dat[10]=ifelse(dat$symp2 %in% dep, "dep", ifelse(dat$symp2 %in% anx, "anx", ifelse(dat$symp2 %in% ed, "ed", dat$symp2)))
+  dat[11]=ifelse(dat$symp3 %in% dep, "dep", ifelse(dat$symp3 %in% anx, "anx", ifelse(dat$symp3 %in% ed, "ed", dat$symp3)))
+  dat[12]=ifelse(dat$symp4 %in% dep, "dep", ifelse(dat$symp4 %in% anx, "anx", ifelse(dat$symp4 %in% ed, "ed", dat$symp4)))
+  dat[13]=ifelse(dat$symp5 %in% dep, "dep", ifelse(dat$symp5 %in% anx, "anx", ifelse(dat$symp5 %in% ed, "ed", dat$symp5)))
+  dat[14]=ifelse(dat$symp6 %in% dep, "dep", ifelse(dat$symp6 %in% anx, "anx", ifelse(dat$symp6 %in% ed, "ed", dat$symp6)))
+}
+
+
+# make factor
+dat <- data.frame(lapply(dat, factor))
+```
+
+# frequency and percents
+```{r}
+dat %>% pivot_longer(everything(), values_drop_na = TRUE) %>% count(value) %>% arrange(desc(n)) 
+# ed = 155, dep = 143, anx = 74
+
+# apply((dat[9:14]), 2, table)
+# sum(10,15,8,17,9,15) # 74 anx
+# sum(22,17,26,20,28,30) # 143 dep
+# sum(30,30,28,25,25,17) # 155 ed
+prod(dim(dat[3:8])) # 372
+(74/372)*100 # 19.89 anxious
+(143/372)*100 # 38.44 dep
+(155/372)*100 # 41.67 ed
+
+
+# means nets
+means=dat[which(dat$network=="means"),]
+prod(dim(means[3:8])) # 186 # check
+apply((means[9:14]), 2, table)
+sum(4,6,3,8,3,9) # 33 anx
+(sum(4,6,3,8,3,9)/186)*100 # 17.74% anxious
+
+sum(12,10,11,10,13,11) # 67 dep
+(sum(12,10,11,10,13,11)/186)*100 # 36.02% dep
+
+sum(15,15,17,13,15,1) # 76 ed
+(sum(15,15,17,13,15,1) /186)*100 # 40.86% ed
+
+means %>% pivot_longer(everything(), values_drop_na = TRUE) %>% count(value) %>% arrange(desc(n)) 
+# body dissat (n=20), feel fat (n=16), fear gain (n=14)
+
+
+# sd nets
+sd=dat[which(dat$network=="sd"),]
+prod(dim(sd[3:8])) # 186
+apply((sd[9:14]), 2, table)
+
+sum(6,9,5,9,6,6) # 41 anx
+(sum(6,9,5,9,6,6)/186)*100 # 22.04% anxious
+
+sum(10,7,15,10,15,19) # 76 dep
+(sum(10,7,15,10,15,19)/186)*100 # 40.86% dep
+
+sum(15,15,11,12,10,6) # 69 ed
+(sum(15,15,11,12,10,6)/186)*100 #37.10 ed
+
+sd %>% pivot_longer(everything(), values_drop_na = TRUE) %>% count(value) %>% arrange(desc(n)) 
+# energy (n=10), overeat (n = 10), weighurge (n = 9)
+```
+
+```{r}
+dat %>% filter(network=="means") %>% select(symp1_cat:symp6_cat)
+# dep anx ed:  14
+# dep anx: 4
+# dep ed:  6
+# anx ed:  4
+# ed: 1
+
+dat %>% filter(network=="sd") %>% select(symp1_cat:symp6_cat)
+# dep anx ed: 14
+# dep anx: 6
+# dep ed:  6
+# anx ed:  5
+# ed: 1
+# dep: 
+
+# total
+# dep anx ed: 30
+# dep anx: 10
+# dep ed: 12
+# anx ed: 5
+# ed: 2
+# dep 1
+```
+
+```{r}
+dat %>% filter(network=="means") %>% pivot_longer(everything(), values_drop_na = TRUE) %>% count(value) %>% arrange(desc(n)) 
+
+dat %>% filter(network=="sd") %>% pivot_longer(everything(), values_drop_na = TRUE) %>% count(value) %>% arrange(desc(n)) 
+```
+
+# means variability overlap
+
+Seventeen participants had completely different symptoms in their means and standard deviation networks.
+
+Six participants had one symptom included both, 
+
+four participants had two symptoms in both, 
+
+two participants had three symptoms in both, 
+
+one participant had four symptoms in both, and one participant had 5 symptoms in both
+
+```{r}
+# View(dat)
+# DMS001, DMS007, DMS025, DMS027, DMS039, DMS062, DMS090, DMS092, DMS097, DMS098, DMS099, DMS105, DMS110, DMS111, DMS112, DMS113, DMS116 no overlap (n = 17)
+# DMS005 shares 2: traumamem and shortcomings
+# DMS008 shares 4: sleep, appetite, bodydissat, energy
+# DMS018 shares 2: sleep, purgeurge
+# DMS022 shares 3: energy, sleep, alwaysworry
+# DMS028 shares 2: concentrate, workjob
+# DMS035 shares 1: weighurge
+# DMS053 shares 1: sleep
+# DMS056 shares 5: energy, sleep, fasturge, restricturge
+# DMS100 shares 2: bodydissat, feelfat 
+# DMS107 shares 1: sleep
+# DMS123 shares 1: desirethin
+# DMS127 shares 1: criticalself
+# DMS130 shares 1: feelfat
+# DMS135 shares 3: pleasure, energy, concentrate
+
+# overlap
+# ed: 9
+# anx: 3
+# dep : 16
+```
+
+# subset
+
+How many combinations of symptoms are there not considering order
+```{r}
+datsymp_means = dat[which(dat$network=="means"),3:8]
+
+data.frame(table(combo = sapply(split(as.matrix(datsymp_means), row(datsymp_means)), 
+  function(x) paste(sort(x), collapse=" "))))
+# each n = 1
+
+datsymp_sd = dat[which(dat$network=="sd"),3:8]
+
+data.frame(table(combo = sapply(split(as.matrix(datsymp_sd), row(datsymp_sd)), 
+  function(x) paste(sort(x), collapse=" "))))
+# each n = 1
+```
+
+## treemaps
+
+### means
+```{r}
+datsymp_means = dat[which(dat$network=="means"),3:14]
+occurences<-table(unlist(datsymp_means))
+occurences
+datsymp_means
+#38
+group <- c(rep("Anx",8),rep("MDD",17),rep("ED",12))
+subgroup <- c("always worry","anxiety", "difficultforget", "interocept", "nervous social","trauma mem", "worry overwhelm","restless", # anx
+                    "appetite", "cry", "decisions", "dislikeself","energy","guilty","pleasure","sleep", "worthless", "criticalself","suppress emo","workjob","concentrate", "irri- table", "short- comings", "failure","sad",#dep
+                    "binge urge", "bodydissat","exercise urge", "fasturge", "feargain", "feelfat", "restrict urge", "weigh urge", "calcount urge", "diet", "desirethin", "wsconc")
+value <- c(9, 12, 1, 2, 1, 1, 2, 2,
+           12, 1, 5, 3, 12, 3, 3, 10, 3, 7, 1, 3, 3, 1, 1, 1, 1,
+           1, 20, 2, 3, 14, 16, 8, 4, 4, 2, 6, 5)
+means_tm <- data.frame(group,subgroup,value)
+
+means_tm <-means_tm %>% 
+  mutate(Symp.Index=paste(subgroup, value, sep ="\n"))
+
+library(treemap)
+png(filename="APSfigs/treemaps_means.png")
+means_treemap=treemap(means_tm, index=c("group","Symp.Index"),     
+        vSize="value", type="index",
+        fontsize.labels=c(15,12),
+        fontcolor.labels=c("white","black"),
+        fontface.labels=c(2,1),                  # Font of labels: 1,2,3,4 for normal, bold, italic, bold-italic...
+        bg.labels=c("transparent"),              # Background color of labels
+        align.labels=list(
+        c("left", "top"), 
+        c("right", "bottom")
+        ),                                   # Where to place labels in the rectangle?
+    border.col=c("black","white"),
+    overlap.labels=.5,                      # number between 0 and 1 that determines the tolerance of the overlap between labels. 0 means that labels of lower levels are not printed if higher level labels overlap, 1  means that labels are always printed. In-between values, for instance the default value .5, means that lower level labels are printed if other labels do not overlap with more than .5  times their area size.
+    inflate.labels=F,                        # If true, labels are bigger when rectangle is bigger.
+    title = "Frequency of Nodes Included in Mean Networks"
+ 
+)
+dev.off()
+ggsave("APSfigs/treemaps_means.png", means_tm)
+```
+### sd
+```{r}
+datsymp_sd = dat[which(dat$network=="sd"),3:14]
+occurences<-table(unlist(datsymp_sd))
+occurences
+
+#38
+group <- c(rep("Anx",10),rep("MDD",17),rep("ED",15))
+subgroup <- c("always worry","anxiety", "difficultforget", "interocept", "nervous social","trauma mem", "worry overwhelm","pastevent", "restless", "control thoughts", # anx
+                    "appetite", "cry", "decisions", "dislikeself","energy","guilty","pleasure","sleep", "worthless", "criticalself","suppress emo","workjob","concentrate", "irri- table", "short- comings", "failure","sad",#dep
+                    "binge urge", "bodydissat","exercise urge", "fasturge", "feargain", "feelfat", "overeat", "purge urge", "restrict urge", "weigh urge", "calcount urge", "diet", "lax diur urge", "desire thin", "wsconc")
+value <- c(1, 3, 8, 3, 6, 5, 3, 7, 2,1,
+           3, 8, 4, 5, 10, 5, 3, 8, 2, 6, 5, 2, 4, 3, 5, 3,2,
+           7, 3,7, 7, 2, 2, 10, 8, 5, 9, 1, 2, 2, 3, 1)
+sd_tm <- data.frame(group,subgroup,value)
+
+sd_tm <-sd_tm %>% 
+  mutate(Symp.Index=paste(subgroup, value, sep ="\n"))
+
+
+treemap(sd_tm, index=c("group","Symp.Index"),     
+        vSize="value", type="index",
+        fontsize.labels=c(15,12),
+        fontcolor.labels=c("white","black"),
+        fontface.labels=c(2,1),                  # Font of labels: 1,2,3,4 for normal, bold, italic, bold-italic...
+        bg.labels=c("transparent"),              # Background color of labels
+        align.labels=list(
+        c("left", "top"), 
+        c("right", "bottom")
+        ),                                   # Where to place labels in the rectangle?
+    border.col=c("black","white"),
+    overlap.labels=.5,                      # number between 0 and 1 that determines the tolerance of the overlap between labels. 0 means that labels of lower levels are not printed if higher level labels overlap, 1  means that labels are always printed. In-between values, for instance the default value .5, means that lower level labels are printed if other labels do not overlap with more than .5  times their area size.
+    inflate.labels=F,                        # If true, labels are bigger when rectangle is bigger.
+    title = "Frequency of Nodes Included in Variability Networks"
+ 
+)
+```
+

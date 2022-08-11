@@ -1,0 +1,313 @@
+---
+title: "AJF 12272021"
+author: "CCusack"
+date: "12/27/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+```
+
+predicting depression outcomes (PHQ 9 change score and clinical deterioration) at follow up.
+
+Not enough data to split into training and test sets.
+
+# packages and dat
+
+```{r}
+# clear work space
+rm(list=ls())
+# load("DMSmodels.RData") # bring in saved work
+
+# packages
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")} # can't not
+if (!require("psych")) {install.packages("psych"); require("psych")} # descriptives and a lifeline
+if (!require("glmnet")) {install.packages("glmnet"); require("glmnet")} # models
+if (!require("pROC")) {install.packages("pROC"); require("pROC")} # AUC
+
+# function for variable importance using cv.glmnet
+source('varImp_fx.R', encoding = 'UTF-8')
+# standardize coefficients. the standardized = TRUE argument doesn't work here
+# if you relied on internal standardization by glmnet (default option standardize = TRUE), these standardized coefficients are actually the ones resulting from the fitting step, before retransformation by glmnet in the original space
+# Normalized coeffcifient is the change in the result for a 1-standard-deviation change in the predictor
+
+dat <- read.csv("./../preprocessing for predictive models/btwnsubdat_cec2021-12-27.csv", na = "NA")
+head(dat)
+# View(dat)
+```
+# EDA
+
+Explore distribution of outcome vars and descriptive statistics
+```{r}
+hist(dat$PHQ_changescore) # normal
+hist(dat$PHQ_percchange) # eh, more skewed but not worried about it
+
+describe(dat)
+# for means contemporaneous, cols 20:25
+# for sd contemporaneous, cols 26:31
+# for means temporal, cols 32:37
+# for sd temporal, cols 38:43
+```
+
+# phq 9 change score 
+
+## means
+convention: objects are labeled "_mc" to indicate "means contemporaneous"
+
+```{r}
+# glmnet net needs it data in a matrix
+mat_mc = as.matrix(dat[,c(which(colnames(dat)=="BD_m"):which(colnames(dat)=="AlwyWry_m"))]) # bd through always worry means
+set.seed(10101)
+
+# ridge regression
+mod_mc = cv.glmnet(mat_mc, dat$PHQ_changescore, nfolds = 4, family = "gaussian", standardized = TRUE, alpha = 0) # default folds is 10
+coef_mc = coef(mod_mc, s = "lambda.min") # ALwyWry_m = 0.28394520, BD_m = -0.15384249
+coef_mc 
+pred_mc = predict(mod_mc, newx=mat_mc, s="lambda.min")
+cor.test(pred_mc, dat$PHQ_changescore)$estimate^2 # 0.1305552 == 13.06% variance
+plot(mod_mc) 
+
+# MSE
+mse.min <- mod_mc$cvm[mod_mc$lambda == mod_mc$lambda.min] 
+mse.min # 33.51151
+
+# variable importance
+varImp_cvglmnet(mat_mc, mod_mc)
+stdcoefs_mc <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```
+
+## sd
+```{r}
+mat_sd = as.matrix(dat[,c(which(colnames(dat)=="FearGain_sd"):which(colnames(dat)=="Diet_sd"))])
+set.seed(10101)
+
+# ridge regression
+mod_sdc = cv.glmnet(mat_sd, dat$PHQ_changescore, nfolds = 4, family = "gaussian", standardized = TRUE, alpha = 0) # default folds is 10
+coef_sdc = coef(mod_sdc, s = "lambda.min") 
+coef_sdc 
+# diet_sd = -0.17804920, FearGain_sd = -0.13290322, Restrict_sd = 0.13631865
+pred_sdc = predict(mod_sdc, newx=mat_sd, s="lambda.min")
+cor.test(pred_sdc, dat$PHQ_changescore)$estimate^2 # 0.1815858 == 18.16% variance
+
+plot(mod_sdc) 
+# MSE
+mse.minsdc <- mod_sdc$cvm[mod_sdc$lambda == mod_sdc$lambda.min] 
+mse.minsdc # 33.63717
+
+# variable importance
+varImp_cvglmnet(mat_sd, mod_sdc)
+stdcoefs_sdc <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```
+
+## means and sd
+```{r}
+mat_comb = as.matrix(dat[,c(which(colnames(dat)=="BD_m"):which(colnames(dat)=="Diet_sd"))])
+set.seed(10101)
+
+# ridge regression
+mod_comb = cv.glmnet(mat_comb, dat$PHQ_changescore, nfolds = 4, family = "gaussian", standardized = TRUE, alpha = 0) # default folds is 10
+coef_comb = coef(mod_comb, s = "lambda.min") 
+coef_comb # AlwyWry_m = 0.30259429; Diet_sd = -0.24517734; Restrict_sd = 0.18535585, FearGain_sd = -0.17599341
+pred_comb = predict(mod_comb, newx=mat_comb, s="lambda.min")
+cor.test(pred_comb, dat$PHQ_changescore)$estimate^2 # 0.2815637 == 28.16% variance
+
+plot(mod_comb) 
+# MSE
+mse.mincombc <- mod_comb$cvm[mod_comb$lambda == mod_comb$lambda.min] 
+mse.mincombc # 33.44746
+
+# variable importance
+varImp_cvglmnet(mat_comb, mod_comb)
+stdcoefs_combc <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```
+
+## in and out str
+### means
+```{r}
+mat_tempm = as.matrix(dat[,c(which(colnames(dat)=="BD_inoutABS_m"):which(colnames(dat)=="AlwyWry_inoutABS_m"))])
+set.seed(10101)
+
+# ridge regression
+change_tempm = cv.glmnet(mat_tempm, dat$PHQ_changescore, nfolds = 4, family = "gaussian", standardized = TRUE, alpha = 0) # default folds is 10
+coef_changetempm = coef(change_tempm, s = "lambda.min") 
+coef_changetempm 
+pred_changetempm = predict(change_tempm, newx=mat_tempm, s="lambda.min")
+cor.test(pred_changetempm, dat$PHQ_changescore)$estimate^2 
+
+plot(change_tempm) 
+# MSe
+mse.min_changetempm <- change_tempm$cvm[change_tempm$lambda == change_tempm$lambda.min] 
+mse.min_changetempm # 33.67734
+
+# variable importance
+varImp_cvglmnet(mat_tempm, change_tempm)
+stdcoefs_tempm <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```
+
+### sd
+```{r}
+mat_tempsd = as.matrix(dat[,c(which(colnames(dat)=="FearGain_inoutABS_sd"):which(colnames(dat)=="Diet_inoutABS_sd"))])
+set.seed(10101)
+
+# ridge regression
+change_tempsd = cv.glmnet(mat_tempsd, dat$PHQ_changescore, nfolds = 4, family = "gaussian", standardized = TRUE, alpha = 0) # default folds is 10
+coef_changetempsd = coef(change_tempsd, s = "lambda.min") 
+coef_changetempsd 
+pred_changetempsd = predict(change_tempsd, newx=mat_tempsd, s="lambda.min")
+cor.test(pred_changetempsd, dat$PHQ_changescore)$estimate^2 
+
+plot(change_tempsd) 
+# MSE
+mse.min_changetempsd <- change_tempsd$cvm[change_tempsd$lambda == change_tempsd$lambda.min] 
+mse.min_changetempsd # 33.75268
+
+# variable importance
+varImp_cvglmnet(mat_tempsd, change_tempsd)
+stdcoefs_tempsd <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```
+
+# binary outcome
+
+phq 9 change score: Clinical deterioration, no change, or improvement
+
+## means 
+```{r}
+# create dummy code vars
+dat$improve = ifelse(dat$PHQ_nominal != "Improvement", 0, 1)
+dat$deteriorate = ifelse(dat$PHQ_nominal != "Deterioration", 0, 1)
+dat %>% select(PHQ_nominal, improve, deteriorate)
+
+set.seed(1234)
+deteriorate_m = cv.glmnet(mat_mc, dat$deteriorate, nfolds = 4, family = "binomial", standardized = TRUE, alpha = 0.0) 
+coef_dm = coef(deteriorate_m, s = "lambda.min") # always worry = -0.101275435, feel fat = 0.045005412
+coef_dm
+pred_dm = predict(deteriorate_m, newx=mat_mc, s="lambda.min")
+cor.test(pred_dm, dat$deteriorate)$estimate^2 # 0.1582932 # 15.93
+pROC::auc(pROC::roc(dat$deteriorate~pred_dm)) # 0.756
+
+pROC::coords((pROC::roc(dat$deteriorate~pred_dm)),"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
+# threshold = -1.26, specificity = .5, sensitivity = 1
+
+# variable importance
+varImp_cvglmnet(mat_mc, deteriorate_m)
+stdcoefs_deteriorm <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```
+
+## sd 
+```{r}
+set.seed(1234)
+deteriorate_sd = cv.glmnet(mat_sd, dat$deteriorate, nfolds = 4, family = "binomial", standardized = TRUE, alpha = 0.0) 
+coef_dsd = coef(deteriorate_sd, s = "lambda.min") 
+coef_dsd # tiny estimates
+pred_dsd = predict(deteriorate_sd, newx=mat_sd, s="lambda.min")
+cor.test(pred_dsd, dat$deteriorate)$estimate^2 # NA
+pROC::auc(pROC::roc(dat$deteriorate~pred_dsd)) # .5 chance
+
+# variable importance
+varImp_cvglmnet(mat_sd, deteriorate_sd)
+stdcoefs_deteriorsd <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```
+
+## means and sd
+```{r}
+set.seed(1234)
+deteriorate_comb = cv.glmnet(mat_comb, dat$deteriorate, nfolds = 4, family = "binomial", standardized = TRUE, alpha = 0.0) # default folds is 10
+
+coef_dcomb = coef(deteriorate_comb, s = "lambda.min") 
+coef_dcomb # tiny
+pred_dcomb = predict(deteriorate_comb, newx=mat_comb, s="lambda.min")
+cor.test(pred_dcomb, dat$deteriorate)$estimate^2 # 0.2060251 20.60%
+pROC::auc(pROC::roc(dat$deteriorate~pred_dcomb)) # 0.8036
+
+pROC::coords((pROC::roc(dat$deteriorate~pred_dcomb)),"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
+# threshold = -1.23, specificity = 0.875, sensitivity =	0.7142857	
+
+# variable importance
+varImp_cvglmnet(mat_comb, deteriorate_comb)
+stdcoefs_deteriorcomb <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```
+
+## means temporal
+```{r}
+set.seed(1234)
+deteriorate_tempm = cv.glmnet(mat_tempm, dat$deteriorate, nfolds = 4, family = "binomial", standardized = TRUE, alpha = 0.0) # default folds is 10
+
+coef_dtempm = coef(deteriorate_tempm, s = "lambda.min") 
+coef_dtempm # FearGain_inoutABS_m = 0.262133742, BD_inoutABS_m = -0.183181572, FeelFat_inoutABS_m = 0.168309441
+pred_dtempm = predict(deteriorate_tempm, newx=mat_tempm, s="lambda.min")
+cor.test(pred_dtempm, dat$deteriorate)$estimate^2 #0.1274739
+pROC::auc(pROC::roc(dat$deteriorate~pred_dtempm)) # 0.7262
+
+pROC::coords((pROC::roc(dat$deteriorate~pred_dtempm)),"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
+# threshold = -1.388804, specificity = 0.4583333, sensitivity =	1	
+
+# variable importance
+varImp_cvglmnet(mat_tempm, deteriorate_tempm)
+stdcoefs_deteriortempm <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```
+
+## sd temporal
+```{r}
+set.seed(1234)
+deteriorate_tempsd = cv.glmnet(mat_tempsd, dat$deteriorate, nfolds = 4, family = "binomial", standardized = TRUE, alpha = 0.0) # default folds is 10
+
+coef_dtempsd = coef(deteriorate_tempsd, s = "lambda.min") 
+coef_dtempsd# tiny estimates
+pred_dtempsd = predict(deteriorate_tempsd, newx=mat_tempsd, s="lambda.min")
+cor.test(pred_dtempsd, dat$deteriorate)$estimate^2 # NA
+pROC::auc(pROC::roc(dat$deteriorate~pred_dtempsd)) # .5 chance
+
+# variable importance
+varImp_cvglmnet(mat_tempsd, deteriorate_tempsd)
+stdcoefs_deteriortempsd <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```
+
+## in and out temp
+```{r}
+mat_tempinout = as.matrix(dat[,c(which(colnames(dat)=="BD_inoutABS_m"):which(colnames(dat)=="AlwyWry_inoutABS_m"), which(colnames(dat)=="FearGain_inoutABS_sd"):which(colnames(dat)=="Diet_inoutABS_sd"))])
+
+set.seed(10101)
+deteriorate_inout = cv.glmnet(mat_tempinout, dat$deteriorate, nfolds = 4, family = "binomial", standardized = TRUE, alpha = 0.0) # default folds is 10
+
+coef_dinout = coef(deteriorate_inout, s = "lambda.min") 
+coef_dinout # tiny
+pred_dinout = predict(deteriorate_inout, newx=mat_tempinout, s="lambda.min")
+# cor.test(pred_dinout, dat$deteriorate)$estimate^2 
+pROC::auc(pROC::roc(dat$deteriorate~pred_dinout)) # 0.50
+
+pROC::coords((pROC::roc(dat$deteriorate~pred_dinout)),"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
+# NA
+
+# variable importance
+varImp_cvglmnet(mat_comb, deteriorate_comb)
+stdcoefs_deteriorcomb <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+deteriorate_inout = cv.glmnet(mat_comb, dat$deteriorate, nfolds = 4, family = "binomial", standardized = TRUE, alpha = 0.0) # default folds is 10
+
+coef_dcomb = coef(deteriorate_comb, s = "lambda.min") 
+coef_dcomb # tiny
+pred_dcomb = predict(deteriorate_comb, newx=mat_comb, s="lambda.min")
+cor.test(pred_dcomb, dat$deteriorate)$estimate^2 # 0.2060251 20.60%
+pROC::auc(pROC::roc(dat$deteriorate~pred_dcomb)) # 0.8036
+
+pROC::coords((pROC::roc(dat$deteriorate~pred_dcomb)),"best", ret=c("threshold", "specificity", "sensitivity"), transpose=FALSE)
+# threshold = -1.23, specificity = 0.875, sensitivity =	0.7142857	
+
+# variable importance
+varImp_cvglmnet(mat_comb, deteriorate_comb)
+stdcoefs_deteriorcomb <- std_coefs # rename df
+rm(std_coefs) # remove auto saved df
+```

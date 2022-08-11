@@ -1,0 +1,527 @@
+---
+title: "Results part 1"
+author: "CCusack"
+date: "10/6/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# data
+```{r}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("psych")) {install.packages("psych"); require("psych")}
+if (!require("sjmisc")) {install.packages("sjmisc"); require("sjmisc")}
+
+cbind.fill <- function(...){
+    nm <- list(...) 
+    nm <- lapply(nm, as.matrix)
+    n <- max(sapply(nm, nrow)) 
+    do.call(cbind, lapply(nm, function (x) 
+        rbind(x, matrix(, n-nrow(x), ncol(x))))) 
+}
+
+cent = read.csv("cent_log.csv", header = TRUE, sep = ",", na.strings = "NA", stringsAsFactors = TRUE)
+# ema data
+groupdata = read.csv("ema_groupdata.csv", header = TRUE, sep = ",", na.strings = "NA", stringsAsFactors = TRUE)
+DMS_baseline <- read.csv("DMS baseline clean.csv", na = "-99")
+head(DMS_baseline)
+
+setdiff(DMS_baseline$id_number, groupdata$ID) 
+
+DMS_baseline <- DMS_baseline[-c(which(DMS_baseline$id_number=="DMS061"), which(DMS_baseline$id_number=="DMS064"), which(DMS_baseline$id_number=="DMS119")),] # n = 31
+
+# followup
+DMS_followup <- read.csv("DMS followup clean.csv", na = "-99")
+
+DMS_followup <- DMS_followup[-c(which(DMS_followup$id_number=="DMS061"), which(DMS_followup$id_number=="DMS064")),]
+
+# comorbidity data from screening interview
+diagnosis <-readxl::read_xlsx("/Users/clairecusack/Dropbox/EAT LAB STUDIES (IN PROGRESS)/COMPLETED/Daily Mood Study (DMS)/Daily Mood Study/individual networks/TSIL 2021/data and code/dms_comorbidity.xlsx", na = "NA")
+```
+
+# Contemporaneous networks
+
+```{r}
+# frequency table of highest central symptom in descending order
+table(cent$ContStrength_name1, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+meanssubset=cent[which(cent$NetType=="means"),]
+table(meanssubset$ContStrength_name1, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+sdsubset=cent[which(cent$NetType=="variance"),]
+table(sdsubset$ContStrength_name1, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+# see as proportion
+prop.table(table(cent$ContStrength_name1, useNA = "ifany")) %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+# frequency table of the second highest central symptom in descending order
+table(cent$ContStrength_name2, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+
+# frequency table of the second highest central symptom in descending order
+table(cent$ContStrength_name3, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+levels(cent$ContStrength_name1)
+```
+
+## means and var
+
+In this chunk, I identify central symptoms for the contemporaneous networks including symptoms with the highest means and highest sds. 
+
+```{r}
+# frequency table of highest central symptom in descending order with nets consisting of sx with highest means
+cent %>% 
+  filter(NetType=="means") %>% 
+  count(ContStrength_name1) %>% 
+  arrange(desc(n))
+
+
+# frequency table of highest central symptom in descending order with nets consisting of sx with highest variance
+cent %>% 
+  filter(NetType=="variance") %>% 
+  count(ContStrength_name1) %>% 
+  arrange(desc(n))
+```
+
+# Temporal networks
+
+In this chunk, I determine which symptoms were most central in the temporal networks. Centrality was determined by OutStrength. To provide additional context for temporal networks, I also determine which symptoms were most frequently influenced by symptoms (e.g., highest InStrength). 
+
+## outstrength
+```{r}
+# symptoms with the highest outstrength
+table(cent$OutStrength_name1, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+prop.table(table(cent$OutStrength_name1, useNA = "ifany")) %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+table(meanssubset$OutStrength_name1, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+table(sdsubset$OutStrength_name1, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+# second highest centrality
+table(cent$OutStrength_name2, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+# third highest centrality
+table(cent$OutStrength_name3, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+```
+
+## instrength
+```{r}
+# symptoms with the highest instrength
+table(cent$InStrength_name1, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+prop.table(table(cent$InStrength_name1, useNA = "ifany")) %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+
+# symptoms with the second highest instrength
+table(cent$InStrength_name2, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+
+# symptoms with the second highest instrength
+table(cent$InStrength_name3, useNA = "ifany") %>% 
+        as.data.frame() %>% 
+        arrange(desc(Freq))
+```
+## means and var
+
+The most central sympt
+```{r}
+# most central sx in temporal networks consisting of sx with highest means
+cent %>% 
+  filter(NetType=="means") %>% 
+  count(OutStrength_name1) %>% 
+  arrange(desc(n))
+
+
+# most central sx in temporal networks consisting of sx with highest sds
+cent %>% 
+  filter(NetType=="variance") %>% 
+  count(OutStrength_name1) %>% 
+  arrange(desc(n))
+
+# symptoms with the highest instrength-means networks
+cent %>% 
+  filter(NetType=="means") %>% 
+  count(InStrength_name1) %>% 
+  arrange(desc(n))
+
+# symptoms with the highest instrength-variance networks
+cent %>% 
+  filter(NetType=="variance") %>% 
+  count(InStrength_name1) %>% 
+  arrange(desc(n))
+```
+
+# unique symptom centrality
+## overall
+```{r}
+# pull list of unique symptoms most central from contemporaneous networks and temporal networks
+contemp_cent <- cent %>% select(ContStrength_name1) %>% as.list(unique()) %>% unlist()
+temp_cent <- cent %>% select(OutStrength_name1) %>% as.list(unique()) %>% unlist()
+
+intersect(contemp_cent, temp_cent)  # 20 the same
+# "concentrate"     "difficultforget" "suppressemo"     "energy"          "bodydissat"     
+# "restricturge"    "exerciseurge"    "weighurge"       "feargain"        "sad"            
+# "feelfat"         "shortcomings"    "guilty"          "purgeurge"       "traumamem"      
+# "dislikeself"     "sleep"           "workjob"         "anxiety"         "pleasure"  
+setdiff(contemp_cent, temp_cent) # 10 in contemp, not in temporal 
+# "cry"          "alwaysworry"  "diet"         "calcounturge" "criticalself" "irritable"   "worthless"    "restless"     "wsconc"       "desirethin"  
+setdiff(temp_cent, contemp_cent) # 3 in temporal, 
+# "overeat"   "decisions" "pastevent"
+# 33 unique symptoms
+```
+
+## means and var
+```{r}
+# contemporaneous networks
+contemp_cent_means <- cent %>% filter(NetType=="means") %>% select(ContStrength_name1) %>% as.list(unique()) %>% unlist()
+contemp_cent_sds <- cent %>% filter(NetType=="variance") %>% select(ContStrength_name1) %>% as.list(unique()) %>% unlist()
+intersect(contemp_cent_means, contemp_cent_sds)  # 6 the same
+# "alwaysworry"  "restricturge" "criticalself" "bodydissat"   "feelfat"      "sad"    
+setdiff(contemp_cent_means, contemp_cent_sds) # 10 in means, not in sds
+# "concentrate"  "energy"       "calcounturge" "feargain"     "guilty"       "worthless"   
+# "sleep"        "workjob"      "wsconc"       "anxiety"    
+setdiff(contemp_cent_sds, contemp_cent_means) # 14 in sds, not in means
+# "cry"             "difficultforget" "suppressemo"     "diet"            "exerciseurge"   
+#  "weighurge"       "irritable"       "shortcomings"    "purgeurge"       "traumamem"      
+#  "restless"        "dislikeself"     "desirethin"      "pleasure"   
+
+# temporal networks
+temp_cent_means <- cent %>% filter(NetType=="means") %>% select(OutStrength_name1) %>% as.list(unique()) %>% unlist()
+temp_cent_sds <- cent %>% filter(NetType=="variance") %>% select(OutStrength_name1) %>% as.list(unique()) %>% unlist()
+intersect(temp_cent_means, temp_cent_sds)  # 4 the same
+# "difficultforget" "energy"          "purgeurge"      "weighurge"    
+setdiff(temp_cent_means, temp_cent_sds) # 9 in means, not in sds
+# "concentrate"  "feelfat"      "decisions"    "feargain"     "bodydissat"   "restricturge"
+# "workjob"      "dislikeself"  "anxiety"     
+setdiff(temp_cent_sds, temp_cent_means) # 10 in sds, not in means.
+# "traumamem"    "overeat"      "sad"          "exerciseurge" "pleasure"     "shortcomings"
+# "suppressemo"  "sleep"        "guilty"       "pastevent"  
+```
+
+# Which nets have temporal associations
+
+I'm seeing which participants have temporal networks for means and variance
+```{r}
+cent %>% drop_na(OutStrength_name1) 
+
+meansandvar <- cent %>% 
+  pivot_wider(id_cols = ID, names_from = NetType, values_from = c(OutStrength_name1:ContStrength_value3), names_sep = ".") %>% 
+  filter(!is.na(OutStrength_name1.means)& !is.na(OutStrength_name1.variance))
+
+meansandvar$ID
+
+rm(meansandvar)
+```
+
+# demos
+```{r}
+# gender
+table(DMS_baseline$gender, useNA = "ifany")
+DMS_baseline$gender <- as.factor(DMS_baseline$gender)
+str(DMS_baseline$gender) # as factor
+levels(DMS_baseline$gender) # check.
+DMS_baseline$gender<- dplyr::recode(DMS_baseline$gender, "0" = "cis woman", "3" = "trans man", "4" = "nonbinary")
+levels(DMS_baseline$gender)
+table(DMS_baseline$gender, useNA = "ifany") 
+prop.table(table(DMS_baseline$gender, useNA = "ifany") ) 
+
+# ethnicity
+table(DMS_baseline$ethnicity, useNA = "ifany")
+DMS_baseline$ethnicity <- as.factor(DMS_baseline$ethnicity)
+str(DMS_baseline$ethnicity) # as factor
+levels(DMS_baseline$ethnicity) # check.
+
+DMS_baseline$ethnicity<- dplyr::recode(DMS_baseline$ethnicity, "1" = "Asian or Pacific Islander", "2"= "Black", "3" = "Hispanic", "4" = "Bi/Multiracial", "5"="White")
+levels(DMS_baseline$ethnicity)
+table(DMS_baseline$ethnicity, useNA = "ifany") 
+prop.table(table(DMS_baseline$ethnicity, useNA = "ifany") )
+
+# age
+describe(DMS_baseline$age) # mean = 25.55, sd = 8.63, median = 23, min = 18, max = 35
+# edu
+describe(DMS_baseline$yearsofschool) # mean = 15.06, sd = 2.56, min = 12, max = 22
+
+str(DMS_baseline$work)
+DMS_baseline$work <- as.factor(DMS_baseline$work)
+table(DMS_baseline$work)
+
+# diagnosis
+## mood
+diagnosis$MoodDisord <- rowSums(sapply(diagnosis[,c("MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp")], as.numeric), na.rm=TRUE)*NA^!rowSums(!is.na(diagnosis[,c("MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp")]))
+
+diagnosis %>% filter(MoodDisord>0) # 28
+diagnosis %>% filter(MDE>0) %>% tally() #17
+diagnosis %>% filter(MDD>0) %>% tally() #11
+diagnosis %>% filter(Bipolar_I>0) %>% tally() #2
+diagnosis %>% filter(Bipoloar_II>0) %>% tally() #4
+diagnosis %>% filter(HypomanicEp>0) %>% tally() #2
+
+## anxiety
+diagnosis$AnxietyDisord <- rowSums(sapply(diagnosis[,c("GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD")], as.numeric), na.rm=TRUE)*NA^!rowSums(!is.na(diagnosis[,c("GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD")]))
+
+diagnosis %>% filter(AnxietyDisord>0) # 25
+diagnosis %>% filter(GAD>0) %>% tally() #22
+diagnosis %>% filter(SAD>0) %>% tally() #6
+diagnosis %>% filter(SocialPhobia>0) %>% tally() #4
+diagnosis %>% filter(SpecificPhobia>0) %>% tally() #2
+diagnosis %>% filter(Agoraphobia>0) %>% tally() #9
+diagnosis %>% filter(PTSD>0) %>% tally() #8
+diagnosis %>% filter(`Panic Disorder`>0) %>% tally() #2
+diagnosis %>% filter(LimitedSxPanic>0) %>% tally() #1
+diagnosis %>% filter(OCD>0) %>% tally() #7
+
+## eating disorder
+diagnosis$ED <- rowSums(sapply(diagnosis[,c("AN-P", "AN-R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")], as.numeric), na.rm=TRUE)*NA^!rowSums(!is.na(diagnosis[,c("AN-P", "AN-R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")]))
+
+diagnosis %>% filter(ED>0) # 20
+diagnosis <- diagnosis %>% rename(AN_P="AN-P") %>% rename(AN_R="AN-R")
+
+diagnosis %>% filter(AN_P>0) %>% tally() #7
+diagnosis %>% filter(AN_R>0) %>% tally() #4
+diagnosis %>% filter(AAN>0) %>% tally() #2
+diagnosis %>% filter(BN>0) %>% tally() #6
+diagnosis %>% filter(ABN>0) %>% tally() #1
+diagnosis %>% filter(OSFED>0) %>% tally() #2
+diagnosis %>% filter(BED>0) %>% tally() #1
+diagnosis %>% filter(ABED>0) %>% tally() #1
+
+diagnosis %>% filter(MoodDisord>0 &AnxietyDisord >0 & ED >0) # 17 had all 3
+diagnosis %>% filter(MoodDisord==0 &AnxietyDisord >0 & ED ==0) # 0 # no one just had anxiety
+diagnosis %>% filter(MoodDisord>0 &AnxietyDisord ==0 & ED ==0) # 2 just had mood
+diagnosis %>% filter(MoodDisord==0 &AnxietyDisord ==0 & ED>0) # 2 just had ED
+diagnosis %>% filter(MoodDisord>0 &AnxietyDisord ==0 & ED>0) # 1 just had ED and mood
+
+```
+# dx by participant for Figure 1
+
+```{r}
+# participant 1. DMS001
+diagnosis %>% filter(ID=="DMS001") %>% select("MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 2. DMS005
+diagnosis %>% filter(ID=="DMS005") %>% select("MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 3. DMS007
+diagnosis %>% filter(ID=="DMS007") %>% select("MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 4. DMS008
+diagnosis %>% filter(ID=="DMS008") %>% select("MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 5. DMS018
+diagnosis %>% filter(ID=="DMS018") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 6. DMS022
+diagnosis %>% filter(ID=="DMS022") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 7. DMS025
+diagnosis %>% filter(ID=="DMS025") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 8. DMS027
+diagnosis %>% filter(ID=="DMS027") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 9. DMS028
+diagnosis %>% filter(ID=="DMS028") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 10. DMS035
+diagnosis %>% filter(ID=="DMS035") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 11. DMS039
+diagnosis %>% filter(ID=="DMS039") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 12. DMS053
+diagnosis %>% filter(ID=="DMS053") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 13. DMS056
+diagnosis %>% filter(ID=="DMS056") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 14. DMS062
+diagnosis %>% filter(ID=="DMS062") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 15. DMS090
+diagnosis %>% filter(ID=="DMS090") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 16. DMS092
+diagnosis %>% filter(ID=="DMS092") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 17. DMS097
+diagnosis %>% filter(ID=="DMS097") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 18. DMS098
+diagnosis %>% filter(ID=="DMS098") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 19. DMS099
+diagnosis %>% filter(ID=="DMS099") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 20. DMS100
+diagnosis %>% filter(ID=="DMS100") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 21. DMS105
+diagnosis %>% filter(ID=="DMS105") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 22. DMS107
+diagnosis %>% filter(ID=="DMS107") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 23. DMS110
+diagnosis %>% filter(ID=="DMS110") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 24. DMS111
+diagnosis %>% filter(ID=="DMS111") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 25. DMS112
+diagnosis %>% filter(ID=="DMS112") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 26. DMS113
+diagnosis %>% filter(ID=="DMS113") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 27. DMS116
+diagnosis %>% filter(ID=="DMS116") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 28. DMS123
+diagnosis %>% filter(ID=="DMS123") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 29. DMS127
+diagnosis %>% filter(ID=="DMS127") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 30. DMS130
+diagnosis %>% filter(ID=="DMS130") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+# participant 31. DMS135
+diagnosis %>% filter(ID=="DMS135") %>% select("MINI.Dx", "SCID.Dx", "MDE", "MDD", "Bipolar_I", "Bipoloar_II", "HypomanicEp", "GAD", "SAD", "SocialPhobia", "SpecificPhobia", "Agoraphobia", "PTSD", "Panic Disorder", "LimitedSxPanic", "OCD", "AN_P", "AN_R", "AAN", "BN", "ABN", "OSFED", "BED", "ABED")
+
+```
+
+```{r}
+# DMS_baseline %>% filter(id_number=="DMS007") %>% select(bdi_clinical_totalscore) # 35
+```
+
+# depression remission
+
+```{r}
+# first see baseline
+DMS_baseline %>% select(id_number, phq_1:phq_9)
+# DMS027, DMS113 empty
+setdiff(DMS_baseline$id_number, DMS_followup$id_number) 
+
+DMS_baseline <- DMS_baseline %>%
+  mutate(phq_baseline = rowSums(dplyr::select(., "phq_1":"phq_9"), na.rm = TRUE)* ifelse(rowSums(is.na(dplyr::select(., "phq_1":"phq_9"))) == ncol(dplyr::select(., starts_with("phq_"))), NA, 1))
+
+DMS_baseline[which(DMS_baseline$phq_baseline == 0), which(colnames(DMS_baseline)=="phq_baseline")] <- NA
+
+DMS_baseline %>% select(id_number, phq_1:phq_9, phq_baseline) # DMS027, DMS113 NA
+
+# follow up
+DMS_followup <- DMS_followup %>%
+  mutate(phq_followup = rowSums(dplyr::select(., "phq_1":"phq_9"), na.rm = TRUE)* ifelse(rowSums(is.na(dplyr::select(., "phq_1":"phq_9"))) == ncol(dplyr::select(., starts_with("phq_"))), NA, 1))
+
+DMS_followup[which(DMS_followup$phq_followup == 0), which(colnames(DMS_followup)=="phq_followup")] <- NA
+
+DMS_followup %>% select(id_number, phq_1:phq_9, phq_followup) 
+
+DMS_followup %>% select(id_number, starts_with("phq"))
+
+DMS_followup_withphq <- as.data.frame(cbind.fill(DMS_followup, DMS_baseline$phq_baseline))
+# remove extra rows (participants in baseline, not in follow up.)
+DMS_followup_withphq <- DMS_followup_withphq[1:23,]
+DMS_followup_withphq <- DMS_followup_withphq %>% rename(phq_baseline = V562)
+
+DMS_followup_withphq %>% select(id_number, starts_with("phq"))
+
+DMS_followup_withphq <-DMS_followup_withphq[-c(which(DMS_followup_withphq$id_number=="DMS027"), which(DMS_followup_withphq$id_number=="DMS028")),]
+
+DMS_followup_withphq %>% select(id_number, starts_with("phq"))
+
+DMS_followup_withphq$phq_baseline <- as.numeric(DMS_followup_withphq$phq_baseline)
+DMS_followup_withphq$phq_followup <- as.numeric(DMS_followup_withphq$phq_followup)
+# subtract follow up score from pre score
+DMS_followup_withphq <- DMS_followup_withphq %>% mutate(phq_changescore = phq_baseline - phq_followup)
+# see
+
+DMS_followup_withphq[,c("id_number", "phq_baseline", "phq_followup", "phq_changescore")]
+
+# percent change
+DMS_followup_withphq$phq_percentchange <- ((DMS_followup_withphq$phq_followup-DMS_followup_withphq$phq_baseline)/DMS_followup_withphq$phq_baseline)*100
+# check
+DMS_followup_withphq[,c("id_number", "phq_baseline", "phq_followup", "phq_changescore", "phq_percentchange")]
+
+DMS_followup_withphq <- DMS_followup_withphq %>% move_columns("phq_baseline", "phq_followup", "phq_changescore", "phq_percentchange", .after = phq_9)
+
+# write.csv(DMS_followup_withphq, "DMS_followupwithphq.csv", row.names = FALSE)
+```
+
+```{r}
+# file.choose()
+prepost <- read.csv("/Users/clairecusack/Dropbox/EAT LAB STUDIES (IN PROGRESS)/COMPLETED/Daily Mood Study (DMS)/Daily Mood Study/group level project/data/prepostdata.csv", header = TRUE, sep = ",", stringsAsFactors = TRUE)
+sum(is.na(prepost))/prod(dim(prepost)) # 0 
+View(prepost)
+
+prepost <- prepost[-c(which(prepost$ID=="DMS061"), which(prepost$ID=="DMS064"), which(prepost$ID=="DMS119")),] 
+
+
+prepost$PHQ_total <- as.numeric(prepost$PHQ_total)
+prepost$followup_PHQ_total <- as.numeric(prepost$followup_PHQ_total)
+# subtract follow up score from pre score
+prepost <- prepost %>% mutate(phq_changescore = PHQ_total - followup_PHQ_total)
+# see
+
+prepost[,c("ID", "PHQ_total", "followup_PHQ_total", "phq_changescore")]
+
+# percent change
+prepost$phq_percentchange <- ((prepost$followup_PHQ_total-prepost$PHQ_total)/prepost$PHQ_total)*100
+# check
+prepost[,c("ID", "PHQ_total", "followup_PHQ_total", "phq_changescore", "phq_percentchange")]
+
+# write.csv(prepost, "DMS_prepostphq.csv", row.names = FALSE)
+```
+
+# alpha coef
+## baseline bdi
+```{r}
+DMS_baseline[, which(grepl("bdi_([0-9]{1,2}_)clinical", colnames(DMS_baseline)))]
+
+psych::alpha(DMS_baseline[, which(grepl("bdi_([0-9]{1,2}_)clinical", colnames(DMS_baseline)))])
+# alpha = .86
+
+psych::describe(prepost$BDI_clinical_total) # 33.94 sd 8.64
+```
+
+## phq-9 follow up
+```{r}
+DMS_followup[, which(grepl("^phq", colnames(DMS_followup)))]
+
+psych::alpha(DMS_followup[, which(grepl("^phq", colnames(DMS_followup)))])
+# alpha = .85
+```

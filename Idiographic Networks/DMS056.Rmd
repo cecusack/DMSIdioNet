@@ -1,0 +1,195 @@
+---
+title: "DMS056 network code"
+author: "CCusack"
+date: "09/09/2021"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 6
+    toc_float: true
+    number_sections: true
+    code_folding: hide
+    theme: cosmo
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      progress = FALSE)
+```
+
+# Set up
+
+In this chunk I upload  necessary packages, functions, and data.
+
+```{r warning=FALSE, message=FALSE}
+# clear work space
+rm(list=ls())
+
+# packages
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("graphicalVAR")) {install.packages("graphicalVAR"); require("graphicalVAR")}
+if (!require("qgraph")) {install.packages("qgraph"); require("qgraph")}
+if (!require("tseries")) {install.packages("tseries"); require("tseries")}
+if (!require("cowplot")) {install.packages("cowplot"); require("cowplot")} # figs
+if (!require("grid")) {install.packages("grid"); require("grid")} # figs
+if (!require("gridExtra")) {install.packages("gridExtra"); require("gridExtra")} # figs
+
+# load funs
+source('./../../centralityPlot source code facet y color change.R', encoding = 'UTF-8')
+source('./../../kpss_dffunction.R', encoding = 'UTF-8')
+source('./../../gather_centfunction.R', encoding = 'UTF-8')
+source('./../kpss_plotfun.R', encoding = 'UTF-8')
+
+# pull in imputed from earlier
+data <- read.csv("./../../Manuscript/Data and Code/ema_groupdata_nonightlag.csv", na = "NA")
+data <- data %>% filter(ID=="DMS056")
+data_means <- data[, c("dayvar", "beepvar", "time", "lag", "tdif", "cumsumT", "bodydissat", "feelfat", "anxiety", "energy", "feargain", "alwaysworry")]
+data_sd <- data[, c("dayvar", "beepvar", "time", "lag", "tdif", "cumsumT", "feargain", "feelfat", "desirethin", "wsconc", "restricturge", "diet")]
+
+# check missingness. should be 0
+sum(is.na(data[,-which(colnames(data)=="lag")]))/prod(dim(data[,-which(colnames(data)=="lag")])) # 0
+```
+
+# detrend means
+
+This procedure is based off of Aaron Fisher et al. (2017) Exploring the idiographic dynamics of mood and anxiety via network analysis. https://osf.io/m63ks/ Instead of applying a cubic spline, the night lag was dropped.
+```{r detrend means}
+# trim
+data_means =data_means[,7:12]
+dedatm=data.frame(matrix(ncol = dim(data_means)[2], nrow = dim(data_means[1])))
+colnames(dedatm)<-colnames(data_means)
+
+# detrend
+for(i in 1:ncol(dedatm)) {
+  dedatm[,i] <- resid(lm(scale(data_means[,i])~data$cumsumT, na.action = na.exclude))
+}
+
+# add day and beep var back in
+dedatm <- bind_cols(data[,2:3], dedatm)
+
+vars_m = names(dedatm)[-c(1:2)] # create list of vars you want to check stationarity for
+kpss_df(dedatm, vars_m)
+
+x <- "beep" # make consec beep vector
+y <- colnames(dedatm)[-c(1:2)] # make a vector from colnames not 1:6 ... everything else
+design.matrix <- tidyr::expand_grid(x, y)
+
+plot_grobm <- plot_grid(arrangeGrob(grobs=pmap(design.matrix, ~kpss_plot(x = .x, y = .y, df= dedatm))))
+plot_grobm 
+```
+
+# detrend sd
+```{r detrend sd}
+# trim
+data_sd =data_sd[,7:12]
+dedatsd=data.frame(matrix(ncol = dim(data_sd)[2], nrow = dim(data_sd[1])))
+colnames(dedatsd)<-colnames(data_sd)
+
+# detrend
+for(i in 1:ncol(dedatsd)) {
+  dedatsd[,i] <- resid(lm(scale(data_sd[,i])~data$cumsumT, na.action = na.exclude))
+}
+
+# add day and beep var back in
+dedatsd <- bind_cols(data[,2:3], dedatsd)
+
+vars_sd = names(dedatsd)[-c(1:2)] # create list of vars you want to check stationarity
+kpss_df(dedatsd, vars_sd)
+
+x <- "beep" # make consec beep vector
+y <- colnames(dedatsd)[-c(1:2)] # make a vector from colnames not 1:6 ... everything else
+design.matrix <- tidyr::expand_grid(x, y)
+
+plot_grobsd <- plot_grid(arrangeGrob(grobs=pmap(design.matrix, ~kpss_plot(x = .x, y = .y, df= dedatsd))))
+plot_grobsd 
+```
+
+
+# networks
+
+We estimate unregularized networks because we are pulling within-person results to use at between-subjects level. If we left graphicalVAR estimation results as default EBIC, each person would have different lambda values, which would render models uninterpretable when we zoom back out to group-level predictions.
+
+## means results
+```{r means net}
+dayvar <- "dayvar"
+beepvar <- "beepvar"
+
+# estimate network
+NetMean <- graphicalVAR(dedatm, vars=vars_m, dayvar=dayvar, beepvar=beepvar, gamma=0, lambda_beta = 0, lambda_kappa = 0, verbose = FALSE)
+
+# save graphs separately to make it easier for formatting later.
+pdf("DMS056_network_means_PCC.pdf", height=5, width=8)
+pcc_m <- plot(NetMean, "PCC", labels= vars_m, edge.labels = TRUE, layout="spring")
+dev.off()
+
+pdf("DMS056_network_means_PDC.pdf", height=5, width=8)
+pdc_m <- plot(NetMean, "PDC", labels = vars_m)
+dev.off()
+
+# create and save centrality plots
+DMS056_centplotm <- plot(NetMean, labels= vars_m, edge.labels = TRUE, layout="spring") %>% 
+  centralityPlot() +
+  theme(legend.position = "none") +
+  facet_grid(rows = vars(measure)) +
+  theme(axis.text=element_text(size=13),
+        strip.text.y = element_text(size=15))
+ggsave(DMS056_centplotm, filename = "DMS056_centrality_m.png")
+
+# centrality tables
+centr_m<-gather_cent(pcc_m, pdc_m)
+rm(centr)
+write.csv(centr_m, "DMS056_centr_means.csv", row.names = FALSE)
+
+# node correlations. Get edge list and weights
+pcc_corr_m <- data.frame(pcc_m[[1]][[2]][[6]])
+pcc_corr_m # look at it
+write.csv(pcc_corr_m, "DMS056_pcc_corr_means.csv", row.names = TRUE)
+
+pdc_corr_m <- data.frame(pdc_m[[1]][[2]][[5]])
+pdc_corr_m # look at it
+write.csv(pdc_corr_m, "DMS056_pdc_corr_means.csv", row.names = TRUE)
+```
+
+## variability results
+```{r sd net}
+dayvar <- "dayvar"
+beepvar <- "beepvar"
+
+# estimates network
+NetSD <- graphicalVAR(dedatsd, vars=vars_sd, dayvar=dayvar, beepvar=beepvar, gamma=0, lambda_beta = 0, lambda_kappa = 0, verbose = FALSE)
+
+# save graphs
+pdf("DMS056_network_sd_PCC.pdf", height=5, width=8)
+pcc_sd <- plot(NetSD, "PCC", labels= vars_sd, edge.labels = TRUE, layout="spring")
+dev.off()
+
+pdf("DMS056_network_sd_PDC.pdf", height=5, width=8)
+pdc_sd <- plot(NetSD, "PDC", labels = vars_sd)
+dev.off()
+
+# create and save centrality plots
+DMS056_centplotsd <- plot(NetSD, labels= vars_sd, edge.labels = TRUE, layout="spring") %>% 
+  centralityPlot() +
+  theme(legend.position = "none") +
+  facet_grid(rows = vars(measure)) +
+  theme(axis.text=element_text(size=13),
+        strip.text.y = element_text(size=15))
+ggsave(DMS056_centplotsd, filename = "DMS056_centrality_sd.png")
+
+# centrality tables
+centr_sd <- gather_cent(pcc_sd, pdc_sd)
+rm(centr)
+write.csv(centr_sd, "DMS056_centr_sd.csv", row.names = FALSE)
+
+# node correlations
+pcc_corr_sd <- data.frame(pcc_sd[[1]][[2]][[6]])
+pcc_corr_sd # look at it
+write.csv(pcc_corr_sd, "DMS056_pcc_corr_sd.csv", row.names = TRUE)
+
+pdc_corr_sd <- data.frame(pdc_sd[[1]][[2]][[5]])
+pdc_corr_sd # look at it
+write.csv(pdc_corr_sd, "DMS056_pdc_corr_sd.csv", row.names = TRUE)
+```
