@@ -4,8 +4,8 @@ This repository contains code used to compute analyses for the paper entitled "U
 
 Claire E Cusack<sup>1</sup>, Christina Ralph-Nearman<sup>1</sup>, Caroline Christian<sup>1</sup>, Aaron J. Fisher<sup>2</sup>, & Cheri Levinson<sup>1</sup>
 
-<sup>1</sup> University of Louisville, Department of Psychological and Brain Sciences
-<sup>1</sup> University of California-Berkeley, Department of Psychology
+<sup>1</sup> University of Louisville, Department of Psychological and Brain Sciences     
+<sup>2</sup> University of California-Berkeley, Department of Psychology
 
 ## Organization
 
