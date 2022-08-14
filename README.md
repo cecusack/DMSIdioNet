@@ -19,7 +19,7 @@ This folder contains the markdown used to create the treemap and the markdown us
 This folder contains code used to build the ridge regression models predicting PHQ-9 change score and logistic regression models predicting clinical deterioration.    
 
 ## Data
-**EMA Data**
+**EMA Data**    
 ema_groupdata_nonightlag.csv    
 
 **Baseline and follow-up data**    
