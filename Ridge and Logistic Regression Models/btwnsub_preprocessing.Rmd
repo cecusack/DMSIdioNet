@@ -1,0 +1,1275 @@
+---
+title: "Btwn-Subjects Dataframe"
+author: "CCusack"
+date: "10/21/2021"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 6
+    toc_float: true
+    number_sections: true
+    code_folding: hide
+    theme: cosmo
+    df_print: paged
+---
+
+Working project title: From idiographic networks to between-subject prediction models of depressive outcomes.
+
+Authors: Claire E. Cusack, M.A., Christina Ralph-Nearman, Ph.D., Caroline Christian, M.S., Aaron J. Fisher, Ph.D., & Cheri A. Levinson, Ph.D. (order tbd)    
+
+The purpose of this markdown is to pull centrality metrics and node correlations from idiographic networks into a between subjects data frame. The idiographic networks were unreguarlized VAR networks. At the group level, the 6 symptoms with the highest means and highest standard deviations were identified.  
+
+**top means:** body dissatisfaction, feeling fat, momentary anxiety, (lack of) energy, fear of weight gain, and always worry    
+**top sds:** Fear of weight gain, feeling fat, desire to be thin, weight shape concentration, urge to restrict,  urge to diet
+
+These symptoms were included in a means network and standard deviations were included in another network for each participant.
+
+Columns include:    
+- baseline and follow up depression scores    
+- top 2 highest strength, in-strength, and out-strength values    
+- edge weights from the contemporaneous and temporal networks for the means and standard deviation networks.    
+- Conventions on column names: correlations from the means contemporaneous network are labeled _mc, means temporal labeled _mt, standard deviation contemporaneous _vc, standard deviation temporal _vt    
+
+Rows are participants (*N* = 31).
+
+We use data collected via EAT Lab's Daily Mood study, which was supported by Dr. Jesse H. Wright Endowment for Mood Disorders Research (funded 7/2019). Participants were adults experiencing a current depressive episode. We collected EMA data 4xday/20 days.
+
+The aims of this project are exploratory.    
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE,
+                      progress = FALSE)
+```
+
+# set up
+```{r}
+if (!require("tidyverse")) {install.packages("tidyverse"); require("tidyverse")}
+if (!require("gdata")) {install.packages("gdata"); require("gdata")}
+
+source('./../../item_selfunctiongroup.R', encoding = 'UTF-8')
+names <- scan("./../../names.txt", what="character", sep = "\n")
+
+# data
+prepost <- read.csv("./../../Manuscript/Data and Code/DMS_prepostphq.csv")
+ema <- read.csv("ema_groupdata_nonightlag.csv", na = "NA")
+# head(ema)
+# head(prepost)
+
+# item_sel(ema[,8:49])
+# top means: "bodydissat", "feelfat", "anxiety", "energy", "feargain", "alwaysworry"
+# top sds: "feargain", "feelfat", "desirethin", "wsconc", "restricturge", "diet"
+
+# create empty df
+btwnsubdat <- data.frame(matrix(nrow = 31, ncol = 43))
+# replace col names
+colnames(btwnsubdat) <- names
+btwnsubdat$ID <- unique(ema$ID) # fill in ID
+rm(ema, item_sel) # don't need
+
+# move over pre-post data to the between subjects df
+btwnsubdat$Baseline_BDI <- prepost$BDI_clinical_total
+btwnsubdat$Baseline_PHQ <- prepost$PHQ_total
+btwnsubdat$Followup_PHQ <- prepost$followup_PHQ_total
+btwnsubdat$PHQ_changescore <- prepost$phq_changescore
+btwnsubdat$PHQ_percchange<- prepost$phq_percentchange
+# for logistic regressions
+btwnsubdat <- btwnsubdat %>%
+  mutate(btwnsubdat, PHQ_nominal = 
+         ifelse(PHQ_changescore <= -5, paste("Deterioration"),
+         ifelse(PHQ_changescore >= 5, paste("Improvement"), paste("No change"))))
+btwnsubdat$PHQ_nominal <- as.factor(btwnsubdat$PHQ_nominal) # make factor
+table(btwnsubdat$PHQ_nominal) # 7 deterioration, 8 improvement, 16 no change
+```
+
+# network metrics
+## DMS001
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS001/DMS001_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS001"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS001"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS001"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS001"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS001"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS001"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS001"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS001"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS001"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS001"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS001_centplotm, DMS001_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS005
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS005/DMS005_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS005"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS005"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS005"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS005"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS005"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS005"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS005"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS005"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS005"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS005"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS005_centplotm, DMS005_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS007
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS007/DMS007_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS007"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS007"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS007"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS007"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS007"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS007"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS007"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS007"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS007"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS007"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS007_centplotm, DMS007_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS008
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS008/DMS008_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS008"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS008"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS008"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS008"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS008"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS008"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS008"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS008"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS008"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS008"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS008_centplotm, DMS008_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS018
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS018/DMS018_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS018"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS018"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS018"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS018"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS018"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS018"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS018"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS018"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS018"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS018"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS018_centplotm, DMS018_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS022
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS022/DMS022_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS022"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS022"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS022"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS022"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS022"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS022"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS022"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS022"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS022"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS022"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS022_centplotm, DMS022_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS025
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS025/DMS025_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS025"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS025"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS025"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS025"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS025"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS025"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS025"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS025"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS025"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS025"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS025_centplotm, DMS025_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS027
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS027/DMS027_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS027"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS027"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS027"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS027"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS027"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS027"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS027"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS027"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS027"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS027"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS027_centplotm, DMS027_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS028
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS028/DMS028_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS028"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS028"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS028"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS028"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS028"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS028"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS028"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS028"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS028"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS028"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS028_centplotm, DMS028_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS035
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS035/DMS035_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS035"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS035"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS035"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS035"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS035"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS035"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS035"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS035"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS035"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS035"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS035_centplotm, DMS035_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS039
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS039/DMS039_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS039"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS039"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS039"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS039"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS039"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS039"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS039"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS039"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS039"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS039"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS039_centplotm, DMS039_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS053
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS053/DMS053_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS053"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS053"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS053"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS053"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS053"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS053"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS053"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS053"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS053"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS053"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS053_centplotm, DMS053_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS056
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS056/DMS056_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS056"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS056"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS056"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS056"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS056"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS056"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS056"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS056"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS056"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS056"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS056_centplotm, DMS056_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS062
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS062/DMS062_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS062"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS062"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS062"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS062"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS062"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS062"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS062"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS062"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS062"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS062"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS062_centplotm, DMS062_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS090
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS090/DMS090_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS090"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS090"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS090"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS090"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS090"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS090"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS090"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS090"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS090"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS090"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS090_centplotm, DMS090_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS092
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS092/DMS092_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS092"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS092"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS092"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS092"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS092"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS092"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS092"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS092"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS092"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS092"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS092_centplotm, DMS092_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS097
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS097/DMS097_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS097"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS097"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS097"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS097"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS097"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS097"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS097"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS097"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS097"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS097"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS097_centplotm, DMS097_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS098
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS098/DMS098_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS098"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS098"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS098"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS098"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS098"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS098"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS098"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS098"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS098"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS098"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS098_centplotm, DMS098_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS099
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS099/DMS099_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS099"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS099"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS099"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS099"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS099"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS099"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS099"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS099"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS099"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS099"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS099_centplotm, DMS099_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS100
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS100/DMS100_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS100"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS100"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS100"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS100"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS100"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS100"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS100"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS100"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS100"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS100"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS100_centplotm, DMS100_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS105
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS105/DMS105_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS105"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS105"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS105"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS105"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS105"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS105"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS105"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS105"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS105"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS105"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS105_centplotm, DMS105_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS107
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS107/DMS107_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS107"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS107"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS107"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS107"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS107"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS107"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS107"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS107"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS107"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS107"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS107_centplotm, DMS107_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS110
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS110/DMS110_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS110"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS110"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS110"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS110"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS110"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS110"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS110"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS110"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS110"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS110"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS110_centplotm, DMS110_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS111
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS111/DMS111_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS111"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS111"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS111"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS111"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS111"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS111"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS111"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS111"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS111"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS111"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS111_centplotm, DMS111_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS112
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS112/DMS112_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS112"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS112"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS112"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS112"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS112"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS112"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS112"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS112"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS112"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS112"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS112_centplotm, DMS112_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS113
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS113/DMS113_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS113"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS113"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS113"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS113"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS113"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS113"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS113"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS113"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS113"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS113"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS113_centplotm, DMS113_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS116
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS116/DMS116_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS116"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS116"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS116"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS116"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS116"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS116"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS116"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS116"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS116"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS116"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS116_centplotm, DMS116_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS123
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS123/DMS123_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS123"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS123"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS123"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS123"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS123"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS123"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS123"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS123"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS123"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS123"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS123_centplotm, DMS123_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS127
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS127/DMS127_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS127"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS127"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS127"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS127"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS127"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS127"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS127"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS127"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS127"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS127"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS127_centplotm, DMS127_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS130
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS130/DMS130_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS130"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS130"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS130"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS130"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS130"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS130"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS130"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS130"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS130"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS130"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS130_centplotm, DMS130_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+## DMS135
+```{r}
+# load .Rdata
+load("./../../unregularized nets/group means sd nets/DMS135/DMS135_unreg.RData")
+# pull strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS135"), c(which(colnames(btwnsubdat)=="Strength1_m"), which(colnames(btwnsubdat)=="Strength2_m"))] <- centr_m %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS135"), c(which(colnames(btwnsubdat)=="In1_m"), which(colnames(btwnsubdat)=="In2_m"))] <- centr_m %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength means
+btwnsubdat[which(btwnsubdat$ID=="DMS135"), c(which(colnames(btwnsubdat)=="Out1_m"), which(colnames(btwnsubdat)=="Out2_m"))] <- centr_m %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS135"), c(which(colnames(btwnsubdat)=="Strength1_v"), which(colnames(btwnsubdat)=="Strength2_v"))] <- centr_sd %>% filter(measure=="Strength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull in-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS135"), c(which(colnames(btwnsubdat)=="In1_v"), which(colnames(btwnsubdat)=="In2_v"))] <- centr_sd %>% filter(measure=="InStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# pull out-strength variance
+btwnsubdat[which(btwnsubdat$ID=="DMS135"), c(which(colnames(btwnsubdat)=="Out1_v"), which(colnames(btwnsubdat)=="Out2_v"))] <- centr_sd %>% filter(measure=="OutStrength") %>% arrange(desc(value)) %>% top_n(2, value) %>% pull(value)
+
+# strength cent means
+btwnsubdat[which(btwnsubdat$ID=="DMS135"), c(which(colnames(btwnsubdat)=="BD_m"):which(colnames(btwnsubdat)=="AlwyWry_m"))]<-centr_m[1:6,5] # partial directed correlations
+
+# strength cent sd
+btwnsubdat[which(btwnsubdat$ID=="DMS135"), c(which(colnames(btwnsubdat)=="FearGain_sd"):which(colnames(btwnsubdat)=="Diet_sd"))]<-centr_sd[1:6,5] # partial directed correlations
+
+# in out absolute value means
+btwnsubdat[which(btwnsubdat$ID=="DMS135"), c(which(colnames(btwnsubdat)=="BD_inoutABS_m"):which(colnames(btwnsubdat)=="AlwyWry_inoutABS_m"))] <- abs(centr_m[7:12,5]) + abs(centr_m[13:18,5])
+
+# in out absolute value sd
+btwnsubdat[which(btwnsubdat$ID=="DMS135"), c(which(colnames(btwnsubdat)=="FearGain_inoutABS_sd"):which(colnames(btwnsubdat)=="Diet_inoutABS_sd"))] <- abs(centr_sd[7:12,5]) + abs(centr_sd[13:18,5])
+
+# clean up env
+rm(centr_m, centr_sd, data_means, data_sd, dedatm, dedatsd, DMS135_centplotm, DMS135_centplotsd, NetMean, NetSD, pcc_corr_m, pcc_corr_sd, pdc_m, pdc_sd, plot_grobm, plot_grobsd, beepvar, dayvar, i, vars_m, vars_sd, x, y, centralityPlot, gather_cent, kpss_df, kpss_plot, pcc_m, pcc_sd, pdc_corr_m, pdc_corr_sd, design.matrix)
+```
+
+# save
+```{r}
+# btwnsubdat
+# name= 'btwnsubdat_cec'
+# filetype= '.csv'
+# filename= paste(name, Sys.Date(), filetype, sep='')
+ 
+# write.csv(btwnsubdat,file=filename, row.names = FALSE)
+# sessionInfo()
+```
+
+
